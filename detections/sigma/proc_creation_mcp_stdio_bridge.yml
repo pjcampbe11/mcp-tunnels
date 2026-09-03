@@ -1,0 +1,42 @@
+title: MCP stdio-to-HTTP Bridge Execution
+id: 5b3d9f71-2a44-4e0c-b1a7-8c6e2d0f4319
+status: experimental
+description: |
+  Detects execution of a stdio-to-HTTP MCP bridge. A bridge lets a stdio-only
+  MCP client reach a remote server, extending implicit local trust to whatever
+  is at the far end of a URL. Bridges sit directly in the credential path.
+  Covers taxonomy type T1.
+
+  Relevant CVE: CVE-2025-6514 (CVSS 9.6) — mcp-remote 0.0.5 through 0.1.15
+  passes a server-supplied authorization_endpoint URL unsanitised to the OS,
+  giving arbitrary command execution on connection to an untrusted server.
+  Fixed in 0.1.16. Extract the version from the command line where possible.
+references:
+  - https://jfrog.com/blog/2025-6514-critical-mcp-remote-rce-vulnerability/
+  - https://owasp.org/www-project-mcp-top-10/
+author: mcp-tunnels
+date: 2026/09/02
+tags:
+  - attack.command-and-control
+  - attack.t1090
+  - mcp.tunnel.t1
+logsource:
+  category: process_creation
+detection:
+  bridges:
+    CommandLine|contains:
+      - 'mcp-remote'
+      - 'supergateway'
+      - 'mcp-proxy'
+      - 'mcpo '
+      - 'stdio-to-sse'
+  launcher:
+    CommandLine|contains:
+      - 'npx '
+      - 'uvx '
+      - 'bunx '
+  condition: bridges
+falsepositives:
+  - Sanctioned use of a bridge to reach an approved remote MCP server. Triage on
+    the destination URL in the command line and on the bridge version.
+level: medium

@@ -1,0 +1,56 @@
+title: Network Connection To Reverse Tunnel Provider Infrastructure
+id: 3e6a1c88-7b52-4d19-9e04-a5f3b2c71d60
+status: experimental
+description: |
+  Detects outbound connections or DNS resolution to reverse tunnel provider
+  control-plane infrastructure. High signal, low volume, cheap to deploy.
+  Covers taxonomy type T2.
+
+  MISSES: connections to an IP literal; DNS-over-HTTPS to a third-party
+  resolver; self-hosted agents (frp, ssh -R) with no provider domain.
+  VERIFY provider endpoints against current vendor documentation — they change.
+references:
+  - https://detection.fyi/sigmahq/sigma/windows/network_connection/net_connection_win_domain_cloudflared_communication/
+author: mcp-tunnels
+date: 2026/09/02
+tags:
+  - attack.command-and-control
+  - attack.t1572
+  - attack.exfiltration
+  - attack.t1567
+  - mcp.tunnel.t2
+logsource:
+  category: network_connection
+detection:
+  selection:
+    Initiated: 'true'
+    DestinationHostname|endswith:
+      - '.v2.argotunnel.com'
+      - 'protocol-v2.argotunnel.com'
+      - 'update.argotunnel.com'
+      - 'trycloudflare.com'
+      - 'tunnel.us.ngrok.com'
+      - 'tunnel.eu.ngrok.com'
+      - 'tunnel.ap.ngrok.com'
+      - 'tunnel.au.ngrok.com'
+      - 'tunnel.sa.ngrok.com'
+      - 'tunnel.jp.ngrok.com'
+      - 'tunnel.in.ngrok.com'
+      - 'connect.ngrok-agent.com'
+      - '.ngrok.io'
+      - '.ngrok-free.app'
+      - 'bin.equinox.io'
+      - '.devtunnels.ms'
+      - 'global.rel.tunnels.api.visualstudio.com'
+      - '.loca.lt'
+      - '.lhr.life'
+      - 'serveo.net'
+      - 'pagekite.me'
+  port_7844:
+    DestinationPort: 7844
+  condition: selection or port_7844
+falsepositives:
+  - Legitimate approved tunnel use. Baseline your developer population first.
+  - Tailscale is frequently sanctioned for remote access; audit Funnel usage
+    separately from general Tailscale usage rather than alerting on both.
+level: medium

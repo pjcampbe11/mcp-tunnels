@@ -1,0 +1,55 @@
+title: MCP Client Configuration Created or Modified
+id: c07b9e13-4d2a-4c88-8a35-1f9e77c4b6aa
+status: experimental
+description: |
+  Detects writes to MCP client configuration files. A new server entry registers
+  a tool source the model will trust and whose descriptions it will follow as
+  instructions. Project-scoped .mcp.json files arrive with a git clone; at least
+  one IDE version invoked the configured server command on repository open with
+  zero user interaction. Covers taxonomy types T1 and T3, OWASP MCP09.
+
+  MISSES: servers added at runtime through a client UI that writes via an
+  expected process; configuration held in a remote profile.
+references:
+  - https://owasp.org/www-project-mcp-top-10/2025/MCP09-2025%E2%80%93Shadow-MCP-Servers
+author: mcp-tunnels
+date: 2026/09/02
+tags:
+  - attack.persistence
+  - attack.t1546
+  - mcp.tunnel.t1
+  - mcp.tunnel.t3
+logsource:
+  category: file_event
+detection:
+  config_files:
+    TargetFilename|endswith:
+      - '\mcp.json'
+      - '/mcp.json'
+      - '\.mcp.json'
+      - '/.mcp.json'
+      - '\claude_desktop_config.json'
+      - '\mcp_config.json'
+      - '/mcp_config.json'
+      - '\.claude.json'
+      - '/.claude.json'
+  managed_policy:
+    TargetFilename|contains:
+      - 'managed-settings.json'
+  writer_not_expected:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\cmd.exe'
+      - '\wscript.exe'
+      - '\curl.exe'
+      - '/bash'
+      - '/curl'
+      - '/wget'
+  condition: (config_files and writer_not_expected) or managed_policy
+falsepositives:
+  - Legitimate configuration management, or a developer editing by script.
+  - Cloning a repository that contains a project-scoped .mcp.json.
+  - Writes to managed-settings.json fire unconditionally by design; that file is
+    the enterprise policy control and anything modifying it outside your
+    configuration-management pipeline is a control-bypass attempt.
+level: medium

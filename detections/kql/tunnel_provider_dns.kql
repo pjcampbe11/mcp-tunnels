@@ -1,0 +1,17 @@
+// mcp-tunnels :: T2 :: DNS resolution of tunnel provider infrastructure
+// Filters for persistent rather than one-off usage — a single test lookup is
+// noise, sustained usage is an exposure. Tune the thresholds to your estate.
+DeviceNetworkEvents
+| where Timestamp > ago(30d)
+| where RemoteUrl has_any ("argotunnel.com","trycloudflare.com","ngrok.com",
+                           "ngrok.io","ngrok-free.app","devtunnels.ms",
+                           "loca.lt","lhr.life","serveo.net","pagekite.me",
+                           "equinox.io")
+| summarize Lookups = count(),
+            FirstSeen = min(Timestamp), LastSeen = max(Timestamp),
+            Processes = make_set(InitiatingProcessFileName, 10),
+            Domains = make_set(RemoteUrl, 15)
+        by DeviceName, AccountName
+| extend DurationDays = datetime_diff('day', LastSeen, FirstSeen)
+| where DurationDays >= 1 or Lookups > 20
+| sort by Lookups desc

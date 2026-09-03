@@ -1,0 +1,80 @@
+title: Reverse Tunnel Agent Publishing a Local MCP Server
+id: 8f1c4a20-6c9e-4a1b-9f7d-2b5e0c3a7d41
+status: experimental
+description: |
+  Detects execution of a reverse tunnel agent with arguments pointing it at a
+  local service. Combined with a co-occurring loopback listener this indicates a
+  locally bound service has been made internet-reachable without any inbound
+  firewall change. Covers taxonomy type T2.
+
+  MISSES: self-hosted agents invoked under a renamed binary; agents embedded in
+  an editor (VS Code dev tunnels have no separate binary to match); anything
+  that never spawns a distinct process.
+references:
+  - https://blog.cloudflare.com/mcp-security-updates/
+  - https://attack.mitre.org/techniques/T1572/
+author: mcp-tunnels
+date: 2026/09/02
+tags:
+  - attack.command-and-control
+  - attack.t1572
+  - attack.exfiltration
+  - attack.t1567
+  - mcp.tunnel.t2
+logsource:
+  category: process_creation
+detection:
+  cloudflared:
+    Image|endswith:
+      - '\cloudflared.exe'
+      - '/cloudflared'
+    CommandLine|contains: 'tunnel'
+  cloudflared_quick:
+    CommandLine|contains|all:
+      - 'tunnel'
+      - '--url'
+  ngrok:
+    Image|endswith:
+      - '\ngrok.exe'
+      - '/ngrok'
+    CommandLine|contains:
+      - ' http '
+      - ' tcp '
+      - 'authtoken'
+      - 'start '
+  devtunnel:
+    Image|endswith:
+      - '\devtunnel.exe'
+      - '/devtunnel'
+    CommandLine|contains: 'host'
+  ssh_reverse:
+    CommandLine|re: '\bssh\b.*\s-R\s+\d{1,5}:'
+  other_agents:
+    Image|endswith:
+      - '\frpc.exe'
+      - '/frpc'
+      - '/bore'
+      - '/pagekite'
+    CommandLine|contains:
+      - 'localhost'
+      - '127.0.0.1'
+  points_at_local:
+    CommandLine|contains:
+      - 'localhost:'
+      - '127.0.0.1:'
+      - 'http://localhost'
+      - 'http://127.0.0.1'
+  filter_known_good:
+    # replace with your approved build agent / dev VDI naming convention
+    Computer|startswith: 'BUILD-'
+  condition: >
+    ( cloudflared or cloudflared_quick or ngrok or devtunnel
+      or ssh_reverse or (other_agents and points_at_local) )
+    and not filter_known_good
+falsepositives:
+  - Legitimate developer workflow exposing a local service for AI assistant
+    testing. This is the vendor-documented pattern for remote MCP development
+    and it WILL fire on an engineering estate. Triage on whether the target
+    service is in scope and whether the host is authorised.
+  - Approved use of Cloudflare Tunnel or Tailscale for internal service access.
+level: high

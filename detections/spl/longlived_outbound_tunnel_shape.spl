@@ -1,0 +1,19 @@
+# mcp-tunnels :: T2 :: long-lived low-volume outbound sessions (tunnel shape)
+# Platform: Splunk, AWS VPC Flow Logs
+#
+# DELIBERATELY LOOSE. Purpose is to baseline long-lived outbound sessions per
+# host, not to alert on day one. Tighten once you know your normal.
+#
+# Destination port 7844 alone is worth a separate standalone alert — very
+# little legitimate traffic uses it.
+index=network sourcetype=aws:cloudwatchlogs:vpcflow action=ACCEPT
+| where (dstport=7844 OR dstport=443)
+| stats sum(bytes) as total_bytes
+        min(start) as flow_start max(end) as flow_end
+        dc(dstaddr) as distinct_dsts count as flow_records
+     by srcaddr dstaddr dstport
+| eval duration_min = round((flow_end - flow_start)/60, 1)
+| eval bytes_per_min = round(total_bytes / (duration_min + 1), 0)
+| where duration_min > 60 AND bytes_per_min < 60000
+| sort - duration_min
+| head 100

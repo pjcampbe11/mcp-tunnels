@@ -1,0 +1,22 @@
+# mcp-tunnels :: T1/T2 :: tunnel agent and MCP bridge execution
+# Platform: Splunk, Sysmon EventCode 1
+index=endpoint (sourcetype=Sysmon OR sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational)
+  EventCode=1
+| eval cmd=lower(CommandLine)
+| where match(cmd, "cloudflared.*tunnel")
+     OR match(cmd, "ngrok\s+(http|tcp|start)")
+     OR match(cmd, "devtunnel\s+host")
+     OR match(cmd, "ssh\s+.*-r\s+\d{1,5}:")
+     OR match(cmd, "mcp-remote|supergateway|mcp-proxy|mcpo")
+| eval tunnel_type=case(
+    match(cmd,"cloudflared"),"T2-cloudflared",
+    match(cmd,"ngrok"),"T2-ngrok",
+    match(cmd,"devtunnel"),"T2-devtunnel",
+    match(cmd,"ssh"),"T2-ssh-reverse",
+    1=1,"T1-mcp-bridge")
+| stats earliest(_time) as first_seen latest(_time) as last_seen
+        values(User) as users values(ParentImage) as parents
+        values(CommandLine) as cmdlines count
+     by host tunnel_type
+| convert ctime(first_seen) ctime(last_seen)
+| sort - count

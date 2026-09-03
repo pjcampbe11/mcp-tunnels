@@ -1,0 +1,65 @@
+<!--
+  mcp-tunnels :: Sysmon rule groups for MCP tunnel and bridge visibility.
+
+  MERGE these rule groups into your existing configuration. Do not deploy this
+  file as a complete config.
+
+  TWO DEFAULTS THAT WILL HURT YOU:
+   1. Most Sysmon configs EXCLUDE loopback in Event ID 3 — which is exactly
+      where the tunnel-to-MCP-server hop lives.
+   2. Event ID 3 is high volume, so people filter it hard and lose the signal.
+      Pilot the loopback inclusion below before fleet-wide deployment; you may
+      need to scope it to specific parent processes.
+-->
+<Sysmon schemaversion="4.90">
+  <EventFiltering>
+
+    <!-- ID 1: process creation. Tunnel agents (T2) and stdio bridges (T1). -->
+    <RuleGroup groupRelation="or">
+      <ProcessCreate onmatch="include">
+        <Image condition="end with">cloudflared.exe</Image>
+        <Image condition="end with">ngrok.exe</Image>
+        <Image condition="end with">devtunnel.exe</Image>
+        <Image condition="end with">frpc.exe</Image>
+        <CommandLine condition="contains any">tunnel --url;--authtoken;mcp-remote;supergateway;mcp-proxy</CommandLine>
+        <CommandLine condition="contains">ssh -R</CommandLine>
+      </ProcessCreate>
+    </RuleGroup>
+
+    <!-- ID 3: DO NOT blanket-exclude loopback. -->
+    <RuleGroup groupRelation="or">
+      <NetworkConnect onmatch="include">
+        <DestinationIp condition="is">127.0.0.1</DestinationIp>
+        <DestinationIp condition="is">::1</DestinationIp>
+        <DestinationPort condition="is">7844</DestinationPort>
+      </NetworkConnect>
+    </RuleGroup>
+
+    <!-- ID 22: DNS. Cheapest high-signal source available. -->
+    <RuleGroup groupRelation="or">
+      <DnsQuery onmatch="include">
+        <QueryName condition="end with">argotunnel.com</QueryName>
+        <QueryName condition="end with">trycloudflare.com</QueryName>
+        <QueryName condition="end with">ngrok.com</QueryName>
+        <QueryName condition="end with">ngrok.io</QueryName>
+        <QueryName condition="end with">ngrok-free.app</QueryName>
+        <QueryName condition="end with">devtunnels.ms</QueryName>
+        <QueryName condition="end with">loca.lt</QueryName>
+        <QueryName condition="end with">lhr.life</QueryName>
+        <QueryName condition="end with">ts.net</QueryName>
+        <QueryName condition="end with">equinox.io</QueryName>
+      </DnsQuery>
+    </RuleGroup>
+
+    <!-- ID 11: MCP client configuration writes (T1/T3, OWASP MCP09). -->
+    <RuleGroup groupRelation="or">
+      <FileCreate onmatch="include">
+        <TargetFilename condition="end with">mcp.json</TargetFilename>
+        <TargetFilename condition="end with">claude_desktop_config.json</TargetFilename>
+        <TargetFilename condition="end with">mcp_config.json</TargetFilename>
+        <TargetFilename condition="contains">managed-settings.json</TargetFilename>
+      </FileCreate>
+    </RuleGroup>
+
+  </EventFiltering>
+</Sysmon>

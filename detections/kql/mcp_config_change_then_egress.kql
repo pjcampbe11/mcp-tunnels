@@ -1,0 +1,19 @@
+// mcp-tunnels :: T1/T3 :: MCP client config written, followed by new egress
+// A new server entry in a client config, correlated with destinations the host
+// contacted in the next five minutes. Surfaces the destination that was just
+// registered without needing to parse the config file itself.
+DeviceFileEvents
+| where Timestamp > ago(30d)
+| where FileName in~ ("mcp.json",".mcp.json","claude_desktop_config.json","mcp_config.json")
+| where ActionType in ("FileCreated","FileModified")
+| project Timestamp, DeviceName, AccountName, FolderPath, FileName,
+          InitiatingProcessFileName, InitiatingProcessCommandLine, SHA256
+| join kind=leftouter (
+    DeviceNetworkEvents
+    | where Timestamp > ago(30d)
+    | where isnotempty(RemoteUrl)
+    | project NetTime = Timestamp, DeviceName, RemoteUrl, NetProc = InitiatingProcessFileName
+  ) on DeviceName
+| where NetTime between (Timestamp .. (Timestamp + 5m))
+| summarize DestinationsAfterConfigChange = make_set(RemoteUrl, 20)
+        by Timestamp, DeviceName, AccountName, FolderPath, InitiatingProcessFileName

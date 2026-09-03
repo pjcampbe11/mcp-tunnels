@@ -1,0 +1,30 @@
+// mcp-tunnels :: T2 :: HIGHEST PRECISION RULE IN THIS REPO
+// Tunnel agent started, correlated with a loopback listener on the same host
+// within 10 minutes. Neither condition alone is remarkable; together they mean
+// a locally bound service is very likely internet-reachable and no inbound
+// firewall rule changed to make that true.
+// Platform: Microsoft Defender XDR / Sentinel
+let window = 10m;
+let tunnels =
+    DeviceProcessEvents
+    | where Timestamp > ago(7d)
+    | where FileName in~ ("cloudflared.exe","ngrok.exe","devtunnel.exe","frpc.exe",
+                          "cloudflared","ngrok","devtunnel","frpc")
+         or ProcessCommandLine has_any ("tunnel --url","--authtoken","ssh -R",
+                                        "mcp-remote","supergateway","mcp-proxy")
+    | project TunnelTime = Timestamp, DeviceId, DeviceName, AccountName,
+              TunnelProc = FileName, TunnelCmd = ProcessCommandLine,
+              TunnelPid = ProcessId, InitiatingProcessFileName;
+let loopback =
+    DeviceNetworkEvents
+    | where Timestamp > ago(7d)
+    | where RemoteIP in ("127.0.0.1","::1")
+    | where ActionType in ("ListeningConnectionCreated","ConnectionSuccess")
+    | project LoopTime = Timestamp, DeviceId, LoopProc = InitiatingProcessFileName,
+              LoopPort = RemotePort, LoopCmd = InitiatingProcessCommandLine;
+tunnels
+| join kind=inner loopback on DeviceId
+| where abs(datetime_diff('second', LoopTime, TunnelTime)) <= toint(window / 1s)
+| project TunnelTime, DeviceName, AccountName, TunnelProc, TunnelCmd,
+          LoopProc, LoopPort, LoopCmd
+| sort by TunnelTime desc

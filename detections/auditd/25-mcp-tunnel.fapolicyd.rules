@@ -1,0 +1,19 @@
+## mcp-tunnels :: fapolicyd execution control (RHEL / Amazon Linux)
+## Install: /etc/fapolicyd/rules.d/25-mcp-tunnel.rules  (BEFORE the default allow rules)
+## Load:    sudo fagenrules --load && sudo systemctl restart fapolicyd
+## Watch:   sudo journalctl -u fapolicyd -f
+
+## Named deny — a speed bump. A renamed binary defeats this in seconds.
+deny_audit perm=execute all : path=/usr/bin/cloudflared
+deny_audit perm=execute all : path=/usr/local/bin/cloudflared
+deny_audit perm=execute all : path=/usr/bin/ngrok
+deny_audit perm=execute all : path=/usr/local/bin/ngrok
+deny_audit perm=execute all : path=/usr/bin/frpc
+
+## THE HIGH-VALUE LINES. Almost every tunnel binary arrives as a user-downloaded
+## file in a home or temp directory. Denying execution from user-writable paths
+## stops the entire class, including tools nobody has heard of yet.
+## This WILL break some legitimate developer workflows. Pilot before enforcing.
+deny_audit perm=execute all : dir=/home/
+deny_audit perm=execute all : dir=/tmp/
+deny_audit perm=execute all : dir=/var/tmp/

@@ -1,0 +1,24 @@
+## mcp-tunnels :: Linux auditd rules
+## Install: /etc/audit/rules.d/99-mcp-tunnel.rules
+## Load:    sudo augenrules --load && sudo systemctl restart auditd
+## Query:   sudo ausearch -k mcp_tunnel -i
+##          sudo ausearch -k proc_exec -i | grep -Ei 'cloudflared|ngrok|mcp-remote'
+
+## --- T2: execution of tunnel agents ---
+## Path rules only fire if the binary is at that exact path. Most tunnel
+## binaries arrive as a user download in a home directory, so these catch the
+## packaged case only. The execve rule below is the general answer.
+-w /usr/bin/cloudflared       -p x -k mcp_tunnel
+-w /usr/local/bin/cloudflared -p x -k mcp_tunnel
+-w /usr/bin/ngrok             -p x -k mcp_tunnel
+-w /usr/local/bin/ngrok       -p x -k mcp_tunnel
+-w /usr/bin/frpc              -p x -k mcp_tunnel
+-w /usr/local/bin/frpc        -p x -k mcp_tunnel
+
+## --- General execve, post-filter on argv in your pipeline ---
+## HIGH VOLUME. Scope to agent-hosting and developer hosts, or use eBPF instead.
+-a always,exit -F arch=b64 -S execve -F auid>=1000 -F auid!=4294967295 -k proc_exec
+
+## --- T1/T3: MCP client configuration writes ---
+-w /etc/claude-code/managed-settings.json -p wa -k mcp_config
+-a always,exit -F arch=b64 -S openat -F dir=/home -F perm=wa -k home_write
